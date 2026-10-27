@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1077472274697",
+    "project_id": "pnba-f2ef8",
+    "storage_bucket": "pnba-f2ef8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1077472274697:android:2864f271ad503727268bd8",
+        "android_client_info": {
+          "package_name": "org.pnba"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDqI3-pUbQ-tWJ-n9Xe2_D3f5DiZVciTRE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
