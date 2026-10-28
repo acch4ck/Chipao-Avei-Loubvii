@@ -45,6 +45,11 @@ release-key.jks
 # Google Services / Sensitive API Keys (if private)
 # google-services.json
 
+# Python virtual environments & cache
+.venv/
+__pycache__/
+*.pyc
+
 # OS specific files
 .DS_Store
 Thumbs.db
