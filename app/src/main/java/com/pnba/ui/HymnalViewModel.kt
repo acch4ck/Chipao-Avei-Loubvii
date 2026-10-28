@@ -110,6 +110,18 @@ class HymnalViewModel(application: Application) : AndroidViewModel(application) 
     private val _updateCheckStatus = MutableStateFlow<String?>(null)
     val updateCheckStatus: StateFlow<String?> = _updateCheckStatus.asStateFlow()
 
+    private val _isDownloadingUpdate = MutableStateFlow(false)
+    val isDownloadingUpdate: StateFlow<Boolean> = _isDownloadingUpdate.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow<Float?>(null)
+    val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
+
+    private val _downloadStatusMessage = MutableStateFlow<String?>(null)
+    val downloadStatusMessage: StateFlow<String?> = _downloadStatusMessage.asStateFlow()
+
+    private val _downloadedApkFile = MutableStateFlow<java.io.File?>(null)
+    val downloadedApkFile: StateFlow<java.io.File?> = _downloadedApkFile.asStateFlow()
+
     init {
         // Initialize search results
         updateSearch("")
@@ -349,10 +361,48 @@ class HymnalViewModel(application: Application) : AndroidViewModel(application) 
                 if (info?.isUpdateAvailable == true) {
                     _updateCheckStatus.value = "New release v${info.latestVersion} is available!"
                 } else {
-                    _updateCheckStatus.value = "You are using the latest version (v${AppUpdateManager.CURRENT_VERSION_NAME})."
+                    val curName = info?.currentVersion ?: AppUpdateManager.getCurrentVersionName(context)
+                    _updateCheckStatus.value = "You are on the latest version (v$curName)."
                 }
             } else {
-                _updateCheckStatus.value = "Could not check for updates. Please try again later."
+                _updateCheckStatus.value = "Could not check for updates. Please check your connection."
+            }
+        }
+    }
+
+    fun downloadAndInstallUpdate(context: Context, downloadUrl: String) {
+        val existingFile = _downloadedApkFile.value
+        if (existingFile != null && existingFile.exists()) {
+            AppUpdateManager.installApk(context, existingFile)
+            return
+        }
+
+        viewModelScope.launch {
+            _isDownloadingUpdate.value = true
+            _downloadProgress.value = 0f
+            _downloadStatusMessage.value = "Connecting..."
+
+            val result = AppUpdateManager.downloadApk(
+                context = context,
+                downloadUrl = downloadUrl,
+                onProgress = { progress, statusText ->
+                    _downloadProgress.value = progress
+                    _downloadStatusMessage.value = statusText
+                }
+            )
+
+            _isDownloadingUpdate.value = false
+
+            if (result.isSuccess) {
+                val apkFile = result.getOrNull()
+                _downloadedApkFile.value = apkFile
+                _downloadStatusMessage.value = "Download complete! Opening installer..."
+                if (apkFile != null) {
+                    AppUpdateManager.installApk(context, apkFile)
+                }
+            } else {
+                _downloadProgress.value = null
+                _downloadStatusMessage.value = "Download failed: ${result.exceptionOrNull()?.localizedMessage ?: "Network error"}"
             }
         }
     }

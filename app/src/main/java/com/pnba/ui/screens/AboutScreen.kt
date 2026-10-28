@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Refresh
@@ -36,6 +37,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -63,6 +65,7 @@ import androidx.compose.ui.window.Dialog
 import com.pnba.R
 import com.pnba.data.model.ReadingTheme
 import com.pnba.data.network.AppUpdateInfo
+import com.pnba.data.network.AppUpdateManager
 import com.pnba.ui.HymnalViewModel
 import com.pnba.ui.theme.SanctuaryHymnalTheme
 
@@ -80,6 +83,9 @@ fun AboutScreen(
     val updateInfo by viewModel.updateInfo.collectAsState()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
     val updateCheckStatus by viewModel.updateCheckStatus.collectAsState()
+    val isDownloadingUpdate by viewModel.isDownloadingUpdate.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val downloadStatus by viewModel.downloadStatusMessage.collectAsState()
 
     AboutScreenContent(
         showFeedbackDialog = showFeedbackDialog,
@@ -89,9 +95,13 @@ fun AboutScreen(
         updateInfo = updateInfo,
         isCheckingUpdate = isCheckingUpdate,
         updateCheckStatus = updateCheckStatus,
+        isDownloadingUpdate = isDownloadingUpdate,
+        downloadProgress = downloadProgress,
+        downloadStatus = downloadStatus,
         onDismissFeedbackDialog = { viewModel.setFeedbackDialogVisible(false) },
         onOpenFeedbackDialog = { viewModel.setFeedbackDialogVisible(true) },
         onCheckUpdate = { viewModel.checkForAppUpdates(context) },
+        onDownloadAndInstall = { url -> viewModel.downloadAndInstallUpdate(context, url) },
         onSubmitFeedback = { hymnNumber, detail, name, email ->
             viewModel.submitFeedback(
                 hymnNumber = hymnNumber,
@@ -119,9 +129,13 @@ fun AboutScreenContent(
     updateInfo: AppUpdateInfo?,
     isCheckingUpdate: Boolean,
     updateCheckStatus: String?,
+    isDownloadingUpdate: Boolean = false,
+    downloadProgress: Float? = null,
+    downloadStatus: String? = null,
     onDismissFeedbackDialog: () -> Unit,
     onOpenFeedbackDialog: () -> Unit,
     onCheckUpdate: () -> Unit,
+    onDownloadAndInstall: (String) -> Unit = {},
     onSubmitFeedback: (hymnNumber: String, detail: String, name: String, email: String) -> Unit,
     onSendFallbackEmail: (hymnNumber: String, detail: String, name: String, email: String) -> Unit,
     modifier: Modifier = Modifier
@@ -320,6 +334,9 @@ fun AboutScreenContent(
 
         // Section 3.5: App Version & Updates
         item {
+            val currentVersionName = remember(context) { AppUpdateManager.getCurrentVersionName(context) }
+            val currentVersionCode = remember(context) { AppUpdateManager.getCurrentVersionCode(context) }
+
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -343,32 +360,42 @@ fun AboutScreenContent(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Version 1.1 (Build 2)",
+                                text = "Version $currentVersionName (Build $currentVersionCode)",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
+                        // Compact, smaller Check Updates button
                         OutlinedButton(
                             onClick = onCheckUpdate,
-                            enabled = !isCheckingUpdate
+                            enabled = !isCheckingUpdate && !isDownloadingUpdate,
+                            modifier = Modifier.height(32.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             if (isCheckingUpdate) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(14.dp),
-                                    strokeWidth = 2.dp
+                                    modifier = Modifier.size(12.dp),
+                                    strokeWidth = 1.5.dp
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Checking...")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Checking...",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.Refresh,
                                     contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(13.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Check Updates")
+                                Text(
+                                    text = "Check Updates",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
                             }
                         }
                     }
@@ -382,16 +409,69 @@ fun AboutScreenContent(
                         )
                     }
 
+                    // Only show download/install UI when an update is actually available
                     if (updateInfo?.isUpdateAvailable == true && updateInfo.downloadUrl.isNotBlank()) {
                         Spacer(modifier = Modifier.height(10.dp))
-                        Button(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo.downloadUrl))
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Download Latest Release (v${updateInfo.latestVersion})")
+                        if (isDownloadingUpdate) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Downloading v${updateInfo.latestVersion}...",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = downloadStatus ?: "",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    val prog = downloadProgress
+                                    if (prog != null && prog > 0f) {
+                                        LinearProgressIndicator(
+                                            progress = { prog },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp)),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    } else {
+                                        LinearProgressIndicator(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp)),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Button(
+                                onClick = { onDownloadAndInstall(updateInfo.downloadUrl) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Download & Install Release (v${updateInfo.latestVersion})")
+                            }
                         }
                     }
                 }
