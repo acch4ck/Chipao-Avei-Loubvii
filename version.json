@@ -1,27 +1,6 @@
 {
   "latestVersionCode": 3,
   "latestVersionName": "1.2",
-  "releaseNotes": "Extraction & Canonical Parsing:
-
-Built a parser (scripts/parse_full_hymns.py) that extracted every hymn header, Poula title, English cross-reference title, Scripture reference, hymn book reference (S.S., K.K., Red., Alex., C.W.H., B.C.S., C.S.H., STL., STTH., etc.), Key signature, Time signature, Author, and Composer.
-Preserved all 2,692+ instances of Poumai Naga diacritics (ü, Ü).
-Cleaned all PDF kerning artifacts (V AH SOUO 
-→
-→ VAHSOUO, JIHOV AH 
-→
-→ JIHOVAH, Y ou 
-→
-→ You, etc.) and eliminated leaked header/footer category text from verse lines.
-
-Database & Script Synchronization:
-
-Replaced Hymns 220–500 in app/src/main/assets/hymns.json with 100% verified canonical data.
-Synchronized all builder modules in scripts/hymn_builder/ (part5.py, part6.py, part7.py, part8.py, part9.py, part10.py, and build_all_500.py).
-Re-verified final database: 0 mismatches across all 281 hymns (220 to 500).
-
-Rebuilt & Signed Release APK:
-
-Assembled release APK: app-release.apk (12.97 MB) signed with release-key.jks.
-Verified that all 500 hymns load properly and the APK can update seamlessly over existing installations.",
+  "releaseNotes": "Describe your new changes here...",
   "downloadUrl": "https://github.com/acch4ck/Chipao-Avei-Loubvii/releases/latest/download/app-release.apk"
 }
