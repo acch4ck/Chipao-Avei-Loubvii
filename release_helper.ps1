@@ -1,0 +1,104 @@
+# ==============================================================================
+# Chipao Avei Loubvü — Automated Release Helper Script
+# ==============================================================================
+# Run this script whenever you want to release a new version:
+# .\release_helper.ps1
+# ==============================================================================
+
+Write-Host "==================================================" -ForegroundColor Cyan
+Write-Host "  Chipao Avei Loubvü — App Release Helper" -ForegroundColor Cyan
+Write-Host "==================================================" -ForegroundColor Cyan
+Write-Host ""
+
+# 1. Read current version from app/build.gradle.kts
+$gradleFile = "app\build.gradle.kts"
+$content = Get-Content $gradleFile -Raw
+
+$currentCodeMatch = [regex]::Match($content, 'versionCode\s*=\s*(\d+)')
+$currentNameMatch = [regex]::Match($content, 'versionName\s*=\s*"([^"]+)"')
+
+$currentCode = if ($currentCodeMatch.Success) { [int]$currentCodeMatch.Groups[1].Value } else { 3 }
+$currentName = if ($currentNameMatch.Success) { $currentNameMatch.Groups[1].Value } else { "1.2" }
+
+Write-Host "Current App Version: " -NoNewline
+Write-Host "v$currentName " -ForegroundColor Yellow -NoNewline
+Write-Host "(Build $currentCode)" -ForegroundColor Yellow
+Write-Host ""
+
+# 2. Prompt user for new version
+$suggestedCode = $currentCode + 1
+$inputName = Read-Host "Enter new Version Name [press Enter for v$currentName or type e.g. 1.3]"
+$newVersionName = if ([string]::IsNullOrWhiteSpace($inputName)) { $currentName } else { $inputName.TrimStart('v').Trim() }
+
+$inputCode = Read-Host "Enter new Version Code [press Enter for $suggestedCode]"
+$newVersionCode = if ([string]::IsNullOrWhiteSpace($inputCode)) { $suggestedCode } else { [int]$inputCode.Trim() }
+
+$releaseNotes = Read-Host "Enter Release Notes summary [e.g. Corrected hymn typos and in-app updater]"
+if ([string]::IsNullOrWhiteSpace($releaseNotes)) {
+    $releaseNotes = "Hymnal improvements and bug fixes."
+}
+
+Write-Host ""
+Write-Host "Preparing Release: v$newVersionName (Build $newVersionCode)..." -ForegroundColor Green
+
+# 3. Update app/build.gradle.kts
+$newContent = [regex]::Replace($content, 'versionCode\s*=\s*\d+', "versionCode = $newVersionCode")
+$newContent = [regex]::Replace($newContent, 'versionName\s*=\s*"[^"]+"', "versionName = `"$newVersionName`"")
+Set-Content -Path $gradleFile -Value $newContent -Encoding UTF8
+Write-Host "  ✓ Updated $gradleFile" -ForegroundColor DarkGreen
+
+# 4. Update version.json
+$versionJsonObj = [PSCustomObject]@{
+    latestVersionCode = $newVersionCode
+    latestVersionName = $newVersionName
+    releaseNotes      = $releaseNotes
+    downloadUrl       = "https://github.com/acch4ck/Chipao-Avei-Loubvii/releases/latest/download/app-release.apk"
+}
+$versionJsonStr = $versionJsonObj | ConvertTo-Json -Depth 4
+Set-Content -Path "version.json" -Value $versionJsonStr -Encoding UTF8
+Write-Host "  ✓ Updated version.json" -ForegroundColor DarkGreen
+
+# 5. Build signed release APK
+Write-Host ""
+Write-Host "Building signed release APK..." -ForegroundColor Cyan
+& .\gradlew.bat :app:assembleRelease
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Build failed! Please check the errors above." -ForegroundColor Red
+    exit 1
+}
+
+$apkPath = "app\build\outputs\apk\release\app-release.apk"
+if (-not (Test-Path $apkPath)) {
+    Write-Host "APK not found at $apkPath!" -ForegroundColor Red
+    exit 1
+}
+
+$apkItem = Get-Item $apkPath
+$apkSizeMB = [math]::Round($apkItem.Length / 1MB, 2)
+Write-Host "  ✓ Built signed APK successfully! ($apkSizeMB MB)" -ForegroundColor Green
+
+# 6. Commit and Push to GitHub
+Write-Host ""
+Write-Host "Pushing updates to GitHub..." -ForegroundColor Cyan
+git add app/build.gradle.kts version.json
+git commit -m "Release v$newVersionName (Build $newVersionCode)"
+git push origin main
+Write-Host "  ✓ Pushed code to GitHub origin main" -ForegroundColor Green
+
+# 7. Open GitHub Release page and highlight APK in Explorer
+Write-Host ""
+Write-Host "==================================================" -ForegroundColor Cyan
+Write-Host "  Final Step: Publish on GitHub!" -ForegroundColor Yellow
+Write-Host "==================================================" -ForegroundColor Cyan
+Write-Host "1. Tag version: v$newVersionName"
+Write-Host "2. Release title: Chipao Avei Loubvü v$newVersionName"
+Write-Host "3. Drag and drop app-release.apk into the upload box"
+Write-Host "4. Click 'Publish release'"
+Write-Host "==================================================" -ForegroundColor Cyan
+
+# Open folder and browser
+Start-Process explorer.exe "/select,$apkPath"
+Start-Process "https://github.com/acch4ck/Chipao-Avei-Loubvii/releases/new"
+
+Write-Host "Done!" -ForegroundColor Green
