@@ -19,8 +19,8 @@ data class AppUpdateInfo(
 )
 
 object AppUpdateManager {
-    const val CURRENT_VERSION_CODE = 2
-    const val CURRENT_VERSION_NAME = "1.1"
+    const val CURRENT_VERSION_CODE = 3
+    const val CURRENT_VERSION_NAME = "1.2"
 
     suspend fun checkForUpdates(context: Context): Result<AppUpdateInfo> = withContext(Dispatchers.IO) {
         val checkUrl = FeedbackConfig.UPDATE_CHECK_URL.ifBlank {
