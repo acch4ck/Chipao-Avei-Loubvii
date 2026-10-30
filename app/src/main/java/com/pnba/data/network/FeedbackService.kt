@@ -88,10 +88,11 @@ object FeedbackService {
                 } else {
                     val errorText = connection.errorStream?.bufferedReader()?.use(BufferedReader::readText) ?: ""
                     connection.disconnect()
-                    val userMsg = if (responseCode == 403) {
-                        "Google permission error (403): Web app access is restricted. In script.google.com -> Deploy -> Manage deployments -> set 'Who has access' to 'Anyone'."
-                    } else {
-                        "Server error ($responseCode)"
+                    val userMsg = when (responseCode) {
+                        403 -> "Unable to send feedback right now. The server is temporarily unavailable. Please try again later."
+                        429 -> "Too many requests. Please wait a moment and try again."
+                        500, 502, 503 -> "Server error. Please try again in a few minutes."
+                        else -> "Failed to send (error $responseCode). Please check your internet connection."
                     }
                     return@withContext Result.failure(Exception(userMsg))
                 }
@@ -99,8 +100,12 @@ object FeedbackService {
 
             // If we completed redirects
             Result.success("Feedback sent successfully!")
+        } catch (e: java.net.SocketTimeoutException) {
+            Result.failure(Exception("Connection timed out. Please check your internet and try again."))
+        } catch (e: java.net.UnknownHostException) {
+            Result.failure(Exception("No internet connection. Please connect to the internet and try again."))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Failed to send: ${e.message ?: "Unknown error"}. Please check your internet connection."))
         }
     }
 }
